@@ -272,6 +272,7 @@ while True:
 
         if k1:
             selection = selectionList[0]
+            orderName = itemNameDict["order_name"][selection]
 
             orderDict["orderName"].append(orderName)
             orderDict["orderValue"] += itemPriceDict["order_name"][orderName]
