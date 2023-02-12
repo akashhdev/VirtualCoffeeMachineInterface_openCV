@@ -4,7 +4,7 @@ import cv2
 import mysql.connector
 import uuid
 from datetime import datetime
-
+from fpdf import FPDF
 
 ################ MYSQL SETUP ###############
 #mydb = mysql.connector.connect(host="localhost",user="localhost",passwd="1234")
@@ -50,16 +50,16 @@ selection = []
 selectionSpeed = 9
 modePosition = [(1136,196),(1000,384),(1136,581)]
 selectionList = [-1,-1,-1]
-itemDict = {
-             0:[('latte',50),('black',40),('tea',30)],
-             1:[('sugar_one',0),('sugar_two',5),('sugar_three',10)],
-             2:[('size_one',0),('size_two',15),('size_three',30)]
+itemNameDict = {
+             "order_name":{0:"latte",1:"black_coffee",2:"green_tea"},
+             "order_config":{0:"regular_sugar",1:"medium_sugar",2:"large_sugar"},
+             "order_size":{0:"regular_size",1:"medium_size",2:"large_size"}
             }
 
 itemPriceDict = {
-             "order_name":{"latte":50,"black":40,"tea":30},
-             "order_config":{"sugar_one":0,"sugar_two":5,"sugar_three":10},
-             "order_size":{"size_one":0,"size_two":15,"size_three":30}
+             "order_name":{"latte":50,"black_coffee":40,"green_tea":30},
+             "order_config":{"regular_sugar":0,"medium_sugar":5,"large_sugar":10},
+             "order_size":{"regular_size":0,"medium_size":15,"large_size":30}
             }
 
 orderDict = {
@@ -130,6 +130,9 @@ def printReciept(orderID):
 
     # Iterate over the data and print each row
     if data:
+
+        job = ""
+
         for row in data:
             order_id = row[0]
             order_name = row[1]
@@ -141,22 +144,42 @@ def printReciept(orderID):
 
             now = datetime.now()
             dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
-            print("Receipt    "+dt_string)
-            print("--------------------------------")
-            print(f"{order_name}              {str(itemPriceDict['order_name'][order_name])}")
-            print(f"  {order_config}        {'+'+str(itemPriceDict['order_config'][order_config])}")
-            print(f"  {order_size}          {'+'+str(itemPriceDict['order_size'][order_size])}")
+            job+="\n\n"
+            job+="COFFEMART"
+            job+="\nRECIEPT OF PURCHASE"
+            job+="\n"+dt_string
+            job+="\nOrderId: "
+            job+="\n"+order_id
+            job+="\n--------------------------------"
+            job+=f"\n{order_name}              {str(itemPriceDict['order_name'][order_name])} INR"
+            job+=f"\n  {order_config}        {'+'+str(itemPriceDict['order_config'][order_config])} INR"
+            job+=f"\n  {order_size}          {'+'+str(itemPriceDict['order_size'][order_size])} INR"
                     
         
-        print("--------------------------------")
-        print(f"Total: {order_amount}")
-        print(f"Payment Status: {payment_status}")
-        print(f"Order Status: {order_status}")
+        job+="\n--------------------------------"
+        job+=f"\nTotal: {order_amount} INR"
+        job+=f"\nPayment Status: {payment_status}"
+        job+=f"\nOrder Status: {order_status}"
+        job+="\n\n\n"
     else:
         print("\n\nNO DATA FOUND - printReceipt()")
 
     # Close the cursor and connection
     mycursor.close()
+
+    # output reciept to print 
+    pdf = FPDF()
+    pdf.add_page()
+
+    pdf.set_font("Courier", size = 12)
+
+    for line in job.split("\n"):
+        pdf.cell(200,10, txt = line, ln = 1, align = 'C')
+
+    pdf.output("reciept_"+order_id+".pdf")
+
+    # print output on console 
+    print(job)
     
     return
 
@@ -210,6 +233,8 @@ while True:
             selection = 2
 
         else:
+
+            # if no finger is up, reset counter
             selection = -1
             counter = 0
 
@@ -228,11 +253,16 @@ while True:
                 selection = -1
                 counterPause = 1
 
+    elif modeType == 3:
+        # make a circle around the checkmark
+        print(modeType)
+        cv2.ellipse(imgBackground, modePosition[selection],(103,103),0,0,
+                        counter*selectionSpeed,(0,255,0),20)
 
     # pause after selection
     if counterPause > 0:
         counterPause += 1
-        if counterPause > 60:
+        if counterPause > 30:
             counterPause = 0
 
 
@@ -242,9 +272,9 @@ while True:
 
         if k1:
             selection = selectionList[0]
-            # ensures we only add one item every iteration
-            orderDict["orderName"].append(itemDict[selection][selection][0])
-            orderDict["orderValue"] += itemDict[selection][selection][1]
+
+            orderDict["orderName"].append(orderName)
+            orderDict["orderValue"] += itemPriceDict["order_name"][orderName]
             k1 = 0
 
 
@@ -253,9 +283,12 @@ while True:
 
         if k2:
             selection = selectionList[1]
+            orderConfig = itemNameDict["order_config"][selection]
+
             # ensures we only add one item every iteration
-            orderDict["orderConfig"].append(itemDict[selection][selection][0])
-            orderDict["orderValue"] += itemDict[selection][selection][1]
+
+            orderDict["orderConfig"].append(orderConfig)
+            orderDict["orderValue"] += itemPriceDict["order_config"][orderConfig]
             k2 = 0
 
 
@@ -264,9 +297,13 @@ while True:
 
         if k3:
             selection = selectionList[2]
+            orderSize = itemNameDict["order_size"][selection]
+
             # ensures we only add one item every iteration
-            orderDict["orderSize"].append(itemDict[selection][selection][0])
-            orderDict["orderValue"] += itemDict[selection][selection][1]
+
+            orderDict["orderSize"].append(orderSize)
+            orderDict["orderValue"] += itemPriceDict["order_size"][orderSize]
+
             k3 = 0
 
     #push data tp backend
