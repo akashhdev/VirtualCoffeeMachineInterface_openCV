@@ -7,11 +7,19 @@ from datetime import datetime
 from fpdf import FPDF
 
 ################ MYSQL SETUP ###############
-#mydb = mysql.connector.connect(host="localhost",user="localhost",passwd="1234")
-mydb = mysql.connector.connect(host="localhost",user="root",passwd="9500")
-mycursor = mydb.cursor()
-mycursor.execute("use productDemo;")
 
+mydb, mycursor = None, None
+
+def connectToDB():
+
+    global mydb, mycursor
+
+    #mydb = mysql.connector.connect(host="localhost",user="localhost",passwd="1234")
+    mydb = mysql.connector.connect(host="localhost",user="root",passwd="9500")
+    mycursor = mydb.cursor()
+    mycursor.execute("use productDemo;")
+
+connectToDB()
 
 ############################################
 
@@ -72,7 +80,7 @@ orderDict = {
             "orderStatus": "PENDING"
             }
 counterPause = 0
-
+orderPlacedScreenCounter = 0
 detector = HandDetector(detectionCon=0.8,maxHands=1)
 k1,k2,k3,k4 = 1,1,1,1
 
@@ -80,7 +88,10 @@ k1,k2,k3,k4 = 1,1,1,1
 
 #### MYSQL BACKEND ########
 
-def pushToBackend(orderDict):
+def pushToBackend():
+
+    global orderDict
+    global mydb, mycursor
 
     ORDER_ID = orderDict["orderId"]
     ORDER_NAME = orderDict["orderName"][0]
@@ -99,6 +110,8 @@ def pushToBackend(orderDict):
             PAYMENT_STATUS,
             ORDER_STATUS
            )
+
+    connectToDB()
 
     mycursor.execute(sql, val)
     mydb.commit()
@@ -176,13 +189,14 @@ def printReciept(orderID):
     for line in job.split("\n"):
         pdf.cell(200,10, txt = line, ln = 1, align = 'C')
 
-    pdf.output("reciept_"+order_id+".pdf")
+    pdf.output("reciept/reciept_"+order_id+".pdf")
 
     # print output on console 
     print(job)
     
     return
 
+### CLEAR PREVIOUS ORDER RECORD ######
 
 def clearPreviousOrders():
 
@@ -192,140 +206,203 @@ def clearPreviousOrders():
     global orderDict
 
     orderDict = {
+            "orderId": "",
             "orderName":[],
             "orderConfig":[],
             "orderSize":[],
             "orderValue":0,
-    }
+            "paymentStatus": "PENDING",
+            "orderStatus": "PENDING"
+            }
 
     return
     
+### RESTARTS THE MAIN LOOP #####
 
+def restart():
+
+    global modeType 
+    global counterPause 
+    global orderPlacedScreenCounter 
+    global k1,k2,k3,k4
+    global selectionList
+
+    modeType = 0
+    counterPause = 0
+    orderPlacedScreenCounter = 0
+    selectionList = [-1,-1,-1]
+    k1,k2,k3,k4 = 1,1,1,1
+
+    print("\nrestarting loop - restart()\n")
+
+    virtualCoffee()
+
+    return
 
 ### MAIN PROGRAM LOOP #######
 
-while True:
-    success, img = cap.read()
-    hands, img = detector.findHands(img)
-    imgBackground[139:139+480,50:50+640] = img
-    #print(len(listImgModes))
-    imgBackground[0:720,850:1280] = listImgModes[modeType]
+def virtualCoffee():
 
-    if hands and counterPause == 0 and modeType < 3:
-        hand1 = hands[0]
-        fingers1 = detector.fingersUp(hand1)
+    global modeType
+    global orderPlacedScreenCounter
+    global selectionSpeed
 
-        if fingers1 == [0,1,0,0,0]:
-            if selection != 0:
-                counter = 1
-            selection = 0
+    global itemNameDict
+    global itemPriceDict
+    global orderDict
 
+    global selection
+    global modePosition
+    global selectionList
 
-        elif fingers1 == [0,1,1,0,0]:
-            if selection != 1:
-                counter = 1
-            selection = 1
+    global counterPause
+    global counter
+    global orderPlacedScreenCounter
+    global detector
+    global k1,k2,k3,k4
 
 
-        elif fingers1 == [0,1,1,1,0]:
-            if selection != 2:
-                counter = 1
-            selection = 2
+    while True:
+        success, img = cap.read()
+        hands, img = detector.findHands(img)
+        imgBackground[139:139+480,50:50+640] = img
+        #print(len(listImgModes))
+        imgBackground[0:720,850:1280] = listImgModes[modeType]
 
-        else:
+        if hands and counterPause == 0 and modeType < 3:
+            hand1 = hands[0]
+            fingers1 = detector.fingersUp(hand1)
 
-            # if no finger is up, reset counter
-            selection = -1
-            counter = 0
+            if fingers1 == [0,1,0,0,0]:
+                if selection != 0:
+                    counter = 1
+                selection = 0
 
 
-        if counter > 0:
-            counter += 1
+            elif fingers1 == [0,1,1,0,0]:
+                if selection != 1:
+                    counter = 1
+                selection = 1
 
-            #print(counter)
-            cv2.ellipse(imgBackground, modePosition[selection],(103,103),0,0,
-                        counter*selectionSpeed,(0,255,0),20)
+            
+            elif fingers1 == [0,1,1,1,0]:
+                if selection != 2:
+                    counter = 1
+                selection = 2
 
-            if counter*selectionSpeed > 360:
-                selectionList[modeType] = selection
-                modeType += 1
-                counter = 0
+            else:
+
+                # if no finger is up, reset counter
                 selection = -1
-                counterPause = 1
-
-    elif modeType == 3:
-        # make a circle around the checkmark
-        print(modeType)
-        cv2.ellipse(imgBackground, modePosition[selection],(103,103),0,0,
-                        counter*selectionSpeed,(0,255,0),20)
-
-    # pause after selection
-    if counterPause > 0:
-        counterPause += 1
-        if counterPause > 30:
-            counterPause = 0
+                counter = 0
 
 
-    # adding selection icon at bottom
-    if selectionList[0] != -1:
-        imgBackground[636:636 + 65, 133:133 + 65] = listImgIcons[selectionList[0]]
+            if counter > 0:
+                counter += 1
 
-        if k1:
-            selection = selectionList[0]
-            orderName = itemNameDict["order_name"][selection]
+                #print(counter)
+                cv2.ellipse(imgBackground, modePosition[selection],(103,103),0,0,
+                            counter*selectionSpeed,(0,255,0),20)
 
-            orderDict["orderName"].append(orderName)
-            orderDict["orderValue"] += itemPriceDict["order_name"][orderName]
-            k1 = 0
+                if counter*selectionSpeed > 360:
+                    selectionList[modeType] = selection
+                    modeType += 1
+                    counter = 0
+                    selection = -1
+                    counterPause = 1
 
+        # OrderPlaced Screen - 4th reset state  
+        if not hands and modeType == 3 and orderPlacedScreenCounter < 360:
 
-    if selectionList[1] != -1:
-        imgBackground[636:636 + 65, 340:340 + 65] = listImgIcons[3 + selectionList[1]]
+            # 1. disable hand detection
+            hands = None
 
-        if k2:
-            selection = selectionList[1]
-            orderConfig = itemNameDict["order_config"][selection]
+            # 2. make a circle around the checkmark
+            orderPlacedScreenCounter += 0.5
+            cv2.ellipse(imgBackground, modePosition[selection],(103,103),0,0,
+                            orderPlacedScreenCounter*selectionSpeed,(0,255,0),20)
+            
 
-            # ensures we only add one item every iteration
+            # 3. after loading is done go back to initial screen
+            if orderPlacedScreenCounter*selectionSpeed == 360:
 
-            orderDict["orderConfig"].append(orderConfig)
-            orderDict["orderValue"] += itemPriceDict["order_config"][orderConfig]
-            k2 = 0
-
-
-    if selectionList[2] != -1:
-        imgBackground[636:636 + 65, 542:542 + 65] = listImgIcons[6 + selectionList[2]]
-
-        if k3:
-            selection = selectionList[2]
-            orderSize = itemNameDict["order_size"][selection]
-
-            # ensures we only add one item every iteration
-
-            orderDict["orderSize"].append(orderSize)
-            orderDict["orderValue"] += itemPriceDict["order_size"][orderSize]
-
-            k3 = 0
-
-    #push data tp backend
-    if orderDict["orderSize"]:
-        if k4:
-            # 1. add order id
-            orderDict["orderId"] = str(uuid.uuid4())
-
-            # 2. confirm order
-            orderDict['orderStatus'] = "ACCEPTED"
-
-            # 3. push data to backend
-            pushToBackend(orderDict)
-
-            k4 = 0
-
-    #displaying
-    cv2.imshow("Background",imgBackground)
-    cv2.waitKey(1)
+                # 4. restart for next order
+                break
 
 
+        # pause after selection
+        if counterPause > 0:
+            counterPause += 1
+            if counterPause > 30:
+                counterPause = 0
+
+
+        # adding selection icon at bottom
+        if selectionList[0] != -1:
+            imgBackground[636:636 + 65, 133:133 + 65] = listImgIcons[selectionList[0]]
+
+            if k1:
+                selection = selectionList[0]
+                orderName = itemNameDict["order_name"][selection]
+
+                orderDict["orderName"].append(orderName)
+                orderDict["orderValue"] += itemPriceDict["order_name"][orderName]
+                k1 = 0
+
+
+        if selectionList[1] != -1:
+            imgBackground[636:636 + 65, 340:340 + 65] = listImgIcons[3 + selectionList[1]]
+
+            if k2:
+                selection = selectionList[1]
+                orderConfig = itemNameDict["order_config"][selection]
+
+                # ensures we only add one item every iteration
+
+                orderDict["orderConfig"].append(orderConfig)
+                orderDict["orderValue"] += itemPriceDict["order_config"][orderConfig]
+                k2 = 0
+
+
+        if selectionList[2] != -1:
+            imgBackground[636:636 + 65, 542:542 + 65] = listImgIcons[6 + selectionList[2]]
+
+            if k3:
+                selection = selectionList[2]
+                orderSize = itemNameDict["order_size"][selection]
+
+                # ensures we only add one item every iteration
+
+                orderDict["orderSize"].append(orderSize)
+                orderDict["orderValue"] += itemPriceDict["order_size"][orderSize]
+
+                k3 = 0
+
+        #push data tp backend
+        if orderDict["orderSize"]:
+            if k4:
+                # 1. add order id
+                orderDict["orderId"] = str(uuid.uuid4())
+
+                # 2. confirm order
+                orderDict['orderStatus'] = "ACCEPTED"
+
+                # 3. push data to backend
+                pushToBackend()
+
+                k4 = 0
+
+        #displaying
+        cv2.imshow("Background",imgBackground)
+        cv2.waitKey(1)
+
+    restart()
+
+    return
+
+### EXECUTE THE PROGRAM ######
+
+virtualCoffee()
 
 
 
