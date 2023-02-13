@@ -33,7 +33,7 @@ cap.set(4,480)
 
 ############### ASSETS ####################
 
-imgBackground = cv2.imread("Resources/Background.png")
+imgBackground = cv2.imread("Resources/Background2.png")
 
 # importing mode images
 folderPathModes = "Resources/Modes"
@@ -56,7 +56,8 @@ for imgIconsPath in listImgIconsPath:
 modeType = 0
 selection = []
 selectionSpeed = 9
-modePosition = [(1136,196),(1000,384),(1136,581)]
+modePosition = [(1136,196),(1000,384),(1136,581),(1136,196)]
+checkoutCirclePosition = (1067,315)
 selectionList = [-1,-1,-1]
 itemNameDict = {
              "order_name":{0:"latte",1:"black_coffee",2:"green_tea"},
@@ -189,7 +190,7 @@ def printReciept(orderID):
     for line in job.split("\n"):
         pdf.cell(200,10, txt = line, ln = 1, align = 'C')
 
-    pdf.output("reciept/reciept_"+order_id+".pdf")
+    pdf.output("recieptreciept_"+order_id+".pdf")
 
     # print output on console 
     print(job)
@@ -226,12 +227,14 @@ def restart():
     global orderPlacedScreenCounter 
     global k1,k2,k3,k4
     global selectionList
+    global imgBackground
 
     modeType = 0
     counterPause = 0
     orderPlacedScreenCounter = 0
     selectionList = [-1,-1,-1]
     k1,k2,k3,k4 = 1,1,1,1
+    imgBackground = cv2.imread("Resources/Background.png")
 
     print("\nrestarting loop - restart()\n")
 
@@ -290,6 +293,11 @@ def virtualCoffee():
                     counter = 1
                 selection = 2
 
+            elif fingers1 == [1,1,1,1,1]:
+                if selection != 3:
+                    counter = 1
+                selection = 3
+
             else:
 
                 # if no finger is up, reset counter
@@ -319,7 +327,8 @@ def virtualCoffee():
 
             # 2. make a circle around the checkmark
             orderPlacedScreenCounter += 0.5
-            cv2.ellipse(imgBackground, modePosition[selection],(103,103),0,0,
+            
+            cv2.ellipse(imgBackground, checkoutCirclePosition,(98,98),0,0,
                             orderPlacedScreenCounter*selectionSpeed,(0,255,0),20)
             
 
@@ -349,7 +358,6 @@ def virtualCoffee():
                 orderDict["orderValue"] += itemPriceDict["order_name"][orderName]
                 k1 = 0
 
-
         if selectionList[1] != -1:
             imgBackground[636:636 + 65, 340:340 + 65] = listImgIcons[3 + selectionList[1]]
 
@@ -362,7 +370,6 @@ def virtualCoffee():
                 orderDict["orderConfig"].append(orderConfig)
                 orderDict["orderValue"] += itemPriceDict["order_config"][orderConfig]
                 k2 = 0
-
 
         if selectionList[2] != -1:
             imgBackground[636:636 + 65, 542:542 + 65] = listImgIcons[6 + selectionList[2]]
